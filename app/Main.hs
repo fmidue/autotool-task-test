@@ -43,11 +43,12 @@ runMain task solution = do
           if pkgEnvExists
             then Just $ configDir ++ "/pkg-env"
             else Nothing
+    env <- setupEnv envFile
     -- test compile template
-    (sflagTemplate,_) <- compileFiles configDir envFile [template]
+    (sflagTemplate,_) <- compileFiles env [template]
     reportOutcome "template" sflagTemplate
     -- test compile solution and tests
-    (sflagSolution,env) <- compileFiles configDir envFile [solution, tests]
+    (sflagSolution,env) <- compileFiles env [configDir ++ "/TestHelper", solution, tests]
     reportOutcome "solution and tests" sflagSolution
     testRes <- testFiles env configDir
     case testRes of
@@ -66,17 +67,21 @@ reportOutcome target Failed = do
   putStrLn $ target ++ " compilation failed"
   exitFailure
 
-compileFiles :: FilePath -> Maybe FilePath -> [FilePath] -> IO (SuccessFlag,HscEnv)
-compileFiles configDir env fs =
+setupEnv :: Maybe FilePath -> IO HscEnv
+setupEnv env = defaultErrorHandler defaultFatalMessager defaultFlushOut $
+  runGhc (Just libdir) $ do
+    dflags <- getSessionDynFlags
+    setSessionDynFlags $ dflags { hscTarget = HscInterpreted
+                                , ghcLink   = LinkInMemory
+                                , packageEnv = env
+                                }
+    getSession
+
+compileFiles :: HscEnv -> [FilePath] -> IO (SuccessFlag,HscEnv)
+compileFiles env fs =
   defaultErrorHandler defaultFatalMessager defaultFlushOut $
     runGhc (Just libdir) $ do
-      dflags <- getSessionDynFlags
-      setSessionDynFlags $ dflags { hscTarget = HscInterpreted
-                                  , ghcLink   = LinkInMemory
-                                  , packageEnv = env
-                                  }
-
-      addTargetFile $ configDir ++ "/TestHelper.hs"
+      setSession env
       mapM_ addTargetFile fs
       sflag <- load LoadAllTargets
       env <- getSession
