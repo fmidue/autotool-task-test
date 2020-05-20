@@ -48,7 +48,7 @@ runMain task solution = do
     (sflagTemplate,_) <- compileFiles env [template]
     reportOutcome "template" sflagTemplate
     -- test compile solution and tests
-    (sflagSolution,env) <- compileFiles env [configDir ++ "/TestHelper", solution, tests]
+    (sflagSolution,env) <- compileFiles env [configDir ++ "/TestHelper", configDir ++ "/TestHarness", solution, tests]
     reportOutcome "solution and tests" sflagSolution
     testRes <- testFiles env configDir
     case testRes of
@@ -97,8 +97,6 @@ type TestFailure = String
 testFiles :: HscEnv -> FilePath -> IO (Maybe TestFailure)
 testFiles env configDir = runGhc (Just libdir) $ do
   setSession env
-  addTargetFile $ configDir ++ "/TestHarness.hs"
-  load LoadAllTargets
   -- compile test runner
   setContext
     [ IIDecl $ simpleImportDecl (mkModuleName "Prelude")
