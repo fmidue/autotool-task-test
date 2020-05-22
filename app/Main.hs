@@ -5,12 +5,13 @@ import GHC.LanguageExtensions.Type
 import DynFlags
 import Outputable
 import Pretty
+import OccName
 
 import Data.Functor (void)
-import Data.List (break)
+import Data.List (break,find)
 
 import Control.Exception (finally)
-import Control.Monad (when)
+import Control.Monad (join, when)
 import Control.Monad.IO.Class
 
 import System.IO (stdout)
@@ -22,6 +23,7 @@ import GHC.Paths (libdir)
 
 import Unsafe.Coerce (unsafeCoerce)
 
+import Debug.Trace
 {-
   GHC related code follows Stephen Diehl's "Dive into GHC" Overview.
   http://www.stephendiehl.com/posts/ghc_01.html
@@ -97,13 +99,31 @@ type TestFailure = String
 testFiles :: HscEnv -> FilePath -> IO (Maybe TestFailure)
 testFiles env configDir = runGhc (Just libdir) $ do
   setSession env
+  -- look for a Main.main function
+  modules <- map ms_mod . mgModSummaries <$> getModuleGraph
+  let mMod = find ((mkModuleName "Main" ==) . moduleName) modules
+  hasMain <- case mMod of
+    Just mod -> do
+      topLevelScope <- join <$> modInfoTopLevelScope <$$> getModuleInfo mod
+      let mainName = mkOccName varName "main"
+      return $ maybe False ((mainName `elem`) . map occName) topLevelScope
+    Nothing -> return False
   -- compile test runner
-  setContext
+  setContext $
     [ IIDecl $ simpleImportDecl (mkModuleName "Prelude")
     , IIDecl $ simpleImportDecl (mkModuleName "Test.HUnit.Base")
     , IIDecl $ simpleImportDecl (mkModuleName "Test")
     , IIDecl $ simpleImportDecl (mkModuleName "TestHarness")
-    ]
+    ] ++
+    [ IIDecl $ simpleImportDecl (mkModuleName "Main") | hasMain ]
+  -- run public test suite (Main.main) if present
+  when hasMain $ do
+    traceM "!"
+    hValue <- compileExpr "Main.main"
+    liftIO $ do
+      putStrLn "found public test suite\nrunning Main.main:"
+      unsafeCoerce hValue
+  -- run internal test suite
   hValue <- compileExpr $
     "let (Counts {failures=n},s) = TestHarness.run Test.test"
     ++ " in if n > 0 then return (Just $ s []) else (return Nothing :: IO (Maybe String))"
@@ -125,3 +145,6 @@ splitConfig x =
   where
     isSep ('-':'-':'-':_) = True
     isSep _ = False
+
+(<$$>) :: (Functor f, Functor g) => (a -> b) -> f (g a) -> f (g b)
+(<$$>) = fmap . fmap
