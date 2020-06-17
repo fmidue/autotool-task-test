@@ -99,13 +99,15 @@ testFiles :: HscEnv -> FilePath -> IO (Maybe TestFailure)
 testFiles env configDir = runGhc (Just libdir) $ do
   setSession env
   -- look for a Main.main function
-  modules <- map ms_mod . mgModSummaries <$> getModuleGraph
-  let mMod = find ((mkModuleName "Main" ==) . moduleName) modules
-  hasMain <- case mMod of
-    Just mod -> do
-      topLevelScope <- join <$> modInfoTopLevelScope <$$> getModuleInfo mod
+  modules <- mgModSummaries <$> getModuleGraph
+  let mMod = find ((mkModuleName "Main" ==) . moduleName . ms_mod) modules
+  runMain <- case mMod of
+    Just modSum -> do
+      topLevelScope <- join <$> modInfoTopLevelScope <$$> getModuleInfo (ms_mod modSum)
       let mainName = mkOccName varName "main"
-      return $ maybe False ((mainName `elem`) . map occName) topLevelScope
+          containsMain = maybe False ((mainName `elem`) . map occName) topLevelScope
+          isCodeWorldTask = mkModuleName "CodeWorld" `elem` map (unLoc . snd) (ms_textual_imps modSum)
+      return $ containsMain && not isCodeWorldTask
     Nothing -> return False
   -- compile test runner
   setContext $
@@ -114,9 +116,9 @@ testFiles env configDir = runGhc (Just libdir) $ do
     , IIDecl $ simpleImportDecl (mkModuleName "Test")
     , IIDecl $ simpleImportDecl (mkModuleName "TestHarness")
     ] ++
-    [ IIDecl $ simpleImportDecl (mkModuleName "Main") | hasMain ]
+    [ IIDecl $ simpleImportDecl (mkModuleName "Main") | runMain ]
   -- run public test suite (Main.main) if present
-  when hasMain $ do
+  when runMain $ do
     hValue <- compileExpr "Main.main"
     liftIO $ do
       putStrLn "found public test suite\nrunning Main.main:"
