@@ -23,7 +23,6 @@ import GHC.Paths (libdir)
 
 import Unsafe.Coerce (unsafeCoerce)
 
-import Debug.Trace
 {-
   GHC related code follows Stephen Diehl's "Dive into GHC" Overview.
   http://www.stephendiehl.com/posts/ghc_01.html
@@ -118,7 +117,6 @@ testFiles env configDir = runGhc (Just libdir) $ do
     [ IIDecl $ simpleImportDecl (mkModuleName "Main") | hasMain ]
   -- run public test suite (Main.main) if present
   when hasMain $ do
-    traceM "!"
     hValue <- compileExpr "Main.main"
     liftIO $ do
       putStrLn "found public test suite\nrunning Main.main:"
