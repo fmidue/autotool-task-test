@@ -36,7 +36,7 @@ main = do
 runMain :: FilePath -> FilePath -> IO ()
 runMain task solution = do
   (template,tests) <- splitTask task
-  flip finally (mapM_ removeFile [template,tests]) $ do
+  flip finally (mapM_ removeFile (template:tests)) $ do
     home <- getHomeDirectory
     let configDir = home ++ "/.test-task"
     pkgEnvExists <- doesFileExist $ configDir ++ "/pkg-env"
@@ -49,7 +49,7 @@ runMain task solution = do
     (sflagTemplate,_) <- compileFiles env [template]
     reportOutcome "template" sflagTemplate
     -- test compile solution and tests
-    (sflagSolution,env) <- compileFiles env [configDir ++ "/TestHelper", configDir ++ "/TestHarness", solution, tests]
+    (sflagSolution,env) <- compileFiles env $ [configDir ++ "/TestHelper", configDir ++ "/TestHarness", solution] ++ tests
     reportOutcome "solution and tests" sflagSolution
     testRes <- testFiles env configDir
     case testRes of
@@ -127,22 +127,30 @@ testFiles env configDir = runGhc (Just libdir) $ do
     ++ " in if n > 0 then return (Just $ s []) else (return Nothing :: IO (Maybe String))"
   liftIO (unsafeCoerce hValue)
 
-splitTask :: FilePath -> IO (FilePath,FilePath)
+splitTask :: FilePath -> IO (FilePath,[FilePath])
 splitTask file = do
   (template,tests) <- splitConfig <$> readFile file
-  let templateFile = take (length file - 3) file ++ "-template.hs"
-      testsFile = take (length file - 3) file ++ "-tests.hs"
+  let fileBaseName = take (length file - 3) file
+      templateFile = fileBaseName ++ "-template.hs"
+      testFiles = [fileBaseName ++ "-tests"++ show n ++ ".hs" | (n,_) <- zip [1..] tests]
   writeFile templateFile template
-  writeFile testsFile tests
-  return (templateFile,testsFile)
+  mapM_ (uncurry writeFile) $ zip testFiles tests
+  return (templateFile,testFiles)
 
-splitConfig :: String -> (String, String)
+splitConfig :: String -> (String, [String])
 splitConfig x =
-  let (ls1,ls2) = break isSep . tail . dropWhile (not . isSep) $ lines x
-  in (unlines ls1,unlines $ tail ls2)
-  where
-    isSep ('-':'-':'-':_) = True
-    isSep _ = False
+  -- dropWhile discards the YAML part of the config
+  let ~(ls1,_sep:ls2) = break isSep . tail . dropWhile (not . isSep) $ lines x
+  in (unlines ls1, splitTests ls2)
+
+splitTests :: [String] -> [String]
+splitTests x = case break isSep x of
+  (ls1,[]) -> [unlines ls1]
+  (ls1,_sep:ls2) -> unlines ls1 : splitTests ls2
+
+isSep :: String -> Bool
+isSep ('-':'-':'-':_) = True
+isSep _ = False
 
 (<$$>) :: (Functor f, Functor g) => (a -> b) -> f (g a) -> f (g b)
 (<$$>) = fmap . fmap
