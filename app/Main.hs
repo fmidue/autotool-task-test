@@ -46,7 +46,8 @@ runMain task solution = do
             else Nothing
     env <- setupEnv envFile
     -- test compile template
-    (sflagTemplate,_) <- compileFiles env [template]
+    -- don't load the first (primary) test module but load other hidden modules so that the template can import them
+    (sflagTemplate,_) <- compileFiles env $ template : tail tests
     reportOutcome "template" sflagTemplate
     -- test compile solution and tests
     (sflagSolution,env) <- compileFiles env $ [configDir ++ "/TestHelper", configDir ++ "/TestHarness", solution] ++ tests
