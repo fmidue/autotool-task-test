@@ -30,12 +30,14 @@ import Unsafe.Coerce (unsafeCoerce)
 
 main :: IO ()
 main = do
-  [task, solution] <- getArgs
-  runMain task solution
+  args <- getArgs
+  case args of
+    [task, solution] -> runMain task solution Nothing
+    (task:solution:"--type-holes":tys) -> runMain task solution $ Just tys
 
-runMain :: FilePath -> FilePath -> IO ()
-runMain task solution = do
-  (template,tests) <- splitTask task
+runMain :: FilePath -> FilePath -> Maybe [String] -> IO ()
+runMain task solution typeHoles = do
+  (template,tests) <- splitTask task typeHoles
   flip finally (mapM_ removeFile (template:tests)) $ do
     home <- getHomeDirectory
     let configDir = home ++ "/.test-task"
@@ -130,15 +132,21 @@ testFiles env configDir = runGhc (Just libdir) $ do
     ++ " in if n > 0 then return (Just $ s []) else (return Nothing :: IO (Maybe String))"
   liftIO (unsafeCoerce hValue)
 
-splitTask :: FilePath -> IO (FilePath,[FilePath])
-splitTask file = do
+splitTask :: FilePath -> Maybe [String] ->  IO (FilePath,[FilePath])
+splitTask file typeHoles = do
   (template,tests) <- splitConfig <$> readFile file
   let fileBaseName = take (length file - 3) file
       templateFile = fileBaseName ++ "-template.hs"
       testFiles = [fileBaseName ++ "-tests"++ show n ++ ".hs" | (n,_) <- zip [1..] tests]
-  writeFile templateFile template
+  writeFile templateFile $ insertHoledTypes template typeHoles
   mapM_ (uncurry writeFile) $ zip testFiles tests
   return (templateFile,testFiles)
+
+insertHoledTypes :: String -> Maybe [String] -> String
+insertHoledTypes template Nothing = template
+insertHoledTypes template (Just tys) =
+  template ++ "\n" ++
+  unlines (map ("data " ++) tys)
 
 splitConfig :: String -> (String, [String])
 splitConfig x =
