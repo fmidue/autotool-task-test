@@ -1,13 +1,13 @@
-resolver: lts-17.10
+resolver: nightly-2023-05-11
 
 packages:
 - .
 
 extra-deps:
+  - hint-0.9.0.6
   - git: https://github.com/fmidue/haskell-template-task
-    commit: 2f485ea0f144844777688adc85aa846307ee0935
+    commit: 0cdac79d56fefaea2a5017f52f8842dd86a048ad
     subdirs:
-      - .
       - embedded
 
   - git: https://github.com/owestphal/mini-IOTasks

@@ -2,8 +2,13 @@
 module Main where
 
 import GHC
-import DynFlags
-import OccName
+import GHC.Data.Graph.Directed
+import GHC.Unit.Module.Graph
+import GHC.Driver.Session
+import GHC.Types.Name.Occurrence
+-- import DynFlags
+-- import OccName
+-- import Digraph
 
 import Data.List (find)
 
@@ -21,7 +26,6 @@ import GHC.Paths (libdir)
 import Unsafe.Coerce (unsafeCoerce)
 
 import Haskell.Template.FileContents (testHelperContents, testHarnessContents)
-import Digraph
 import Test.HUnit (Counts(..))
 
 {-
@@ -85,7 +89,7 @@ setupEnv env = defaultErrorHandler defaultFatalMessager defaultFlushOut $
   runGhc (Just libdir) $ do
     dflags <- getSessionDynFlags
     liftIO $ putStrLn $ "using ghc version: " ++ ghcNameVersion_projectVersion (ghcNameVersion dflags)
-    setSessionDynFlags $ dflags { hscTarget = HscInterpreted
+    setSessionDynFlags $ dflags { backend = Interpreter
                                 , ghcLink   = LinkInMemory
                                 , packageEnv = env
                                 }
@@ -103,7 +107,7 @@ compileFiles env fs =
 
 addTargetFile ::  GhcMonad m => FilePath -> m ()
 addTargetFile file = do
-  target <- guessTarget file Nothing
+  target <- guessTarget file Nothing Nothing
   addTarget target
 
 type TestFailure = String
@@ -116,11 +120,14 @@ testFiles env = runGhc (Just libdir) $ do
   modGraph <- getModuleGraph
   let
     modules = topSortModuleGraph True modGraph Nothing
-    testMod = find (\case {AcyclicSCC m -> (moduleNameString . ms_mod_name) m == "Test" ; _ -> False}) modules
-    mModName = unLoc . snd . last . ms_textual_imps . head . flattenSCC <$> testMod
-    mMod = (\name -> find (\case { AcyclicSCC m -> ms_mod_name m == name ; _ -> False}) modules) =<< mModName
+    testMod = find (\case {AcyclicSCC (ModuleNode _ m) -> (moduleNameString . ms_mod_name) m == "Test" ; _ -> False}) modules
+    mModName = do
+      tm <- testMod
+      modSum <- moduleGraphNodeModSum . head $ flattenSCC tm
+      return $ unLoc . snd . last . ms_textual_imps $ modSum
+    mMod = (\name -> find (\case { AcyclicSCC (ModuleNode _ m) -> ms_mod_name m == name ; _ -> False}) modules) =<< mModName
   taskModuleName <- case mMod of
-    Just ~(AcyclicSCC modSum) -> do
+    Just ~(AcyclicSCC (ModuleNode _ modSum)) -> do
       topLevelScope <- join <$> modInfoTopLevelScope <$$> getModuleInfo (ms_mod modSum)
       let mainName = mkOccName varName "main"
           containsMain = maybe False ((mainName `elem`) . map occName) topLevelScope
