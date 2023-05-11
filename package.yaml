@@ -23,6 +23,12 @@ dependencies:
 - ghc-paths
 - ghc-boot-th
 - directory
+- extra
+- haskell-template-task
+- HUnit
+
+ghc-options:
+- -Wall
 
 executables:
   test-task:
@@ -32,3 +38,9 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    dependencies:
+      - QuickCheck
+      - random
+      - syb
+      - haskell-src-exts
+      - haskell-template-task-embedded

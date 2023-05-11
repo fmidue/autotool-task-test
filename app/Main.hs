@@ -1,27 +1,28 @@
+{-# LANGUAGE LambdaCase #-}
 module Main where
 
 import GHC
-import GHC.LanguageExtensions.Type
 import DynFlags
-import Outputable
-import Pretty
 import OccName
 
-import Data.Functor (void)
-import Data.List (break,find)
+import Data.List (find)
 
 import Control.Exception (finally)
-import Control.Monad (join, when)
+import Control.Monad (join)
 import Control.Monad.IO.Class
+import Control.Monad.Extra (unlessM)
 
-import System.IO (stdout)
-import System.Environment (getArgs, setEnv)
+import System.Environment (getArgs)
 import System.Exit (exitSuccess, exitFailure)
-import System.Directory (getHomeDirectory, doesFileExist, removeFile)
+import System.Directory (doesFileExist, removeFile, getAppUserDataDirectory)
 
 import GHC.Paths (libdir)
 
 import Unsafe.Coerce (unsafeCoerce)
+
+import Haskell.Template.FileContents (testHelperContents, testHarnessContents)
+import Digraph
+import Test.HUnit (Counts(..))
 
 {-
   GHC related code follows Stephen Diehl's "Dive into GHC" Overview.
@@ -39,12 +40,12 @@ runMain :: FilePath -> FilePath -> Maybe [String] -> IO ()
 runMain task solution typeHoles = do
   (template,tests) <- splitTask task typeHoles
   flip finally (mapM_ removeFile (template:tests)) $ do
-    home <- getHomeDirectory
-    let configDir = home ++ "/.test-task"
-    pkgEnvExists <- doesFileExist $ configDir ++ "/pkg-env"
+    appData <- getAppUserDataDirectory "test-task"
+    setupHelperAndHarness appData
+    pkgEnvExists <- doesFileExist $ appData ++ "/pkg-env"
     let envFile =
           if pkgEnvExists
-            then Just $ configDir ++ "/pkg-env"
+            then Just $ appData ++ "/pkg-env"
             else Nothing
     env <- setupEnv envFile
     -- test compile template
@@ -52,9 +53,9 @@ runMain task solution typeHoles = do
     (sflagTemplate,_) <- compileFiles env $ template : tail tests
     reportOutcome "template" sflagTemplate
     -- test compile solution and tests
-    (sflagSolution,env) <- compileFiles env $ [configDir ++ "/TestHelper", configDir ++ "/TestHarness", solution] ++ tests
+    (sflagSolution,env) <- compileFiles env $ [appData ++ "/TestHelper", appData ++ "/TestHarness", solution] ++ tests
     reportOutcome "solution and tests" sflagSolution
-    testRes <- testFiles env configDir
+    testRes <- testFiles env
     case testRes of
       Just err -> do
         putStrLn "testing solution failed:"
@@ -62,6 +63,13 @@ runMain task solution typeHoles = do
         exitFailure
       Nothing -> putStrLn "successfully tested solution"
     exitSuccess
+
+setupHelperAndHarness :: FilePath -> IO ()
+setupHelperAndHarness appData = do
+  unlessM (doesFileExist $ appData ++ "/TestHelper.hs") $
+    writeFile (appData ++ "/TestHelper.hs") testHelperContents
+  unlessM (doesFileExist $ appData ++ "/TestHarness.hs") $
+    writeFile (appData ++ "/TestHarness.hs") testHarnessContents
 
 reportOutcome :: String -> SuccessFlag -> IO ()
 reportOutcome target Succeeded =
@@ -75,6 +83,7 @@ setupEnv :: Maybe FilePath -> IO HscEnv
 setupEnv env = defaultErrorHandler defaultFatalMessager defaultFlushOut $
   runGhc (Just libdir) $ do
     dflags <- getSessionDynFlags
+    liftIO $ putStrLn $ "using ghc version: " ++ ghcNameVersion_projectVersion (ghcNameVersion dflags)
     setSessionDynFlags $ dflags { hscTarget = HscInterpreted
                                 , ghcLink   = LinkInMemory
                                 , packageEnv = env
@@ -98,20 +107,28 @@ addTargetFile file = do
 
 type TestFailure = String
 
-testFiles :: HscEnv -> FilePath -> IO (Maybe TestFailure)
-testFiles env configDir = runGhc (Just libdir) $ do
+testFiles :: HscEnv -> IO (Maybe TestFailure)
+testFiles env = runGhc (Just libdir) $ do
   setSession env
-  -- look for a Main.main function
-  modules <- mgModSummaries <$> getModuleGraph
-  let mMod = find ((mkModuleName "Main" ==) . moduleName . ms_mod) modules
-  runMain <- case mMod of
-    Just modSum -> do
+  -- look for a TaskXX.main function
+  -- (specifically we are looking for the name of the first import in the hidden Test module)
+  modGraph <- getModuleGraph
+  let
+    modules = topSortModuleGraph True modGraph Nothing
+    testMod = find (\case {AcyclicSCC m -> (moduleNameString . ms_mod_name) m == "Test" ; _ -> False}) modules
+    mModName = unLoc . snd . last . ms_textual_imps . head . flattenSCC <$> testMod
+    mMod = (\name -> find (\case { AcyclicSCC m -> ms_mod_name m == name ; _ -> False}) modules) =<< mModName
+  taskModuleName <- case mMod of
+    Just ~(AcyclicSCC modSum) -> do
       topLevelScope <- join <$> modInfoTopLevelScope <$$> getModuleInfo (ms_mod modSum)
       let mainName = mkOccName varName "main"
           containsMain = maybe False ((mainName `elem`) . map occName) topLevelScope
           isCodeWorldTask = mkModuleName "CodeWorld" `elem` map (unLoc . snd) (ms_textual_imps modSum)
-      return $ containsMain && not isCodeWorldTask
-    Nothing -> return False
+      return $
+        if containsMain && not isCodeWorldTask
+          then Just $ ms_mod_name modSum
+          else Nothing
+    Nothing -> return Nothing
   -- compile test runner
   setContext $
     [ IIDecl $ simpleImportDecl (mkModuleName "Prelude")
@@ -119,18 +136,22 @@ testFiles env configDir = runGhc (Just libdir) $ do
     , IIDecl $ simpleImportDecl (mkModuleName "Test")
     , IIDecl $ simpleImportDecl (mkModuleName "TestHarness")
     ] ++
-    [ IIDecl $ simpleImportDecl (mkModuleName "Main") | runMain ]
-  -- run public test suite (Main.main) if present
-  when runMain $ do
-    hValue <- compileExpr "Main.main"
-    liftIO $ do
-      putStrLn "found public test suite\nrunning Main.main:"
-      unsafeCoerce hValue
+    maybe [] (\m -> [ IIDecl $ simpleImportDecl m ]) taskModuleName
+  -- run public test suite (TaskXX.main) if present
+  case taskModuleName of
+    Just m -> do
+      hValue <- compileExpr $ moduleNameString m ++ ".main"
+      liftIO $ do
+        putStrLn "found public test suite\nrunning main:"
+        unsafeCoerce hValue
+    Nothing -> pure ()
   -- run internal test suite
-  hValue <- compileExpr $
-    "let (Counts {failures=n},s) = TestHarness.run Test.test"
-    ++ " in if n > 0 then return (Just $ s []) else (return Nothing :: IO (Maybe String))"
-  liftIO (unsafeCoerce hValue)
+  liftIO $ putStrLn "running hidden test suite:"
+  hValue <- compileExpr "TestHarness.run Test.test"
+  let (Counts {failures=n},s) = unsafeCoerce hValue
+  liftIO $ if n > 0
+    then return (Just $ s [])
+    else return Nothing
 
 splitTask :: FilePath -> Maybe [String] ->  IO (FilePath,[FilePath])
 splitTask file typeHoles = do

@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8a7a960f2f2006d7222f62f98b3e7950d5695e8a2a203e44c7413c036ff3f5d7
+-- hash: 3aa0cc74473afba5c4933bfe11920002b48e0b16ce7812d627d49ca8fbb04994
 
 name:           autotool-task-test
 version:        0.1.0.0
@@ -24,11 +24,19 @@ executable test-task
       Paths_autotool_task_test
   hs-source-dirs:
       app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall
   build-depends:
-      base >=4.12 && <5
+      HUnit
+    , QuickCheck
+    , base >=4.12 && <5
     , directory
+    , extra
     , ghc ==8.10.7
     , ghc-boot-th
     , ghc-paths
+    , haskell-src-exts
+    , haskell-template-task
+    , haskell-template-task-embedded
+    , random
+    , syb
   default-language: Haskell2010
