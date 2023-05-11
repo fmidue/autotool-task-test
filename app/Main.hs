@@ -14,7 +14,7 @@ import Control.Monad.Extra (unlessM)
 
 import System.Environment (getArgs)
 import System.Exit (exitSuccess, exitFailure)
-import System.Directory (doesFileExist, removeFile, getAppUserDataDirectory)
+import System.Directory (doesFileExist, removeFile, getAppUserDataDirectory, createDirectoryIfMissing)
 
 import GHC.Paths (libdir)
 
@@ -66,6 +66,7 @@ runMain task solution typeHoles = do
 
 setupHelperAndHarness :: FilePath -> IO ()
 setupHelperAndHarness appData = do
+  createDirectoryIfMissing True appData
   unlessM (doesFileExist $ appData ++ "/TestHelper.hs") $
     writeFile (appData ++ "/TestHelper.hs") testHelperContents
   unlessM (doesFileExist $ appData ++ "/TestHarness.hs") $
