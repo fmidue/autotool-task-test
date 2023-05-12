@@ -34,6 +34,7 @@ executable test-task
     , ghc-paths
     , haskell-src-exts
     , haskell-template-task-embedded
+    , haskell-template-task-raw
     , random
     , syb
   default-language: Haskell2010

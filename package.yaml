@@ -24,7 +24,7 @@ dependencies:
 - ghc-boot-th
 - directory
 - extra
-- haskell-template-task-embedded
+- haskell-template-task-raw
 - HUnit
 
 ghc-options:
@@ -43,3 +43,4 @@ executables:
       - random
       - syb
       - haskell-src-exts
+      - haskell-template-task-embedded # used for run-time compilation dependencies

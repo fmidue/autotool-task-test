@@ -6,9 +6,10 @@ packages:
 extra-deps:
   - hint-0.9.0.6
   - git: https://github.com/fmidue/haskell-template-task
-    commit: 0cdac79d56fefaea2a5017f52f8842dd86a048ad
+    commit: 6b714ff8e49afb2e28a5ddeadb3aeebb6ec33c97
     subdirs:
-      - embedded
+      - raw
+      - raw/embedded
 
   - git: https://github.com/owestphal/mini-IOTasks
     commit: 0b93dfed553a027b69aa7ba26d559a3bb77179a1
