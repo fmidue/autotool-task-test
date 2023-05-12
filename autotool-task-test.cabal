@@ -16,6 +16,25 @@ build-type:     Simple
 extra-source-files:
     README.md
 
+executable pkg-path-from-stack
+  main-is: Main.hs
+  other-modules:
+      Paths_autotool_task_test
+  hs-source-dirs:
+      app/pkg-path
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      HUnit
+    , base >=4.12 && <5
+    , directory
+    , extra
+    , ghc ==9.4.5
+    , ghc-boot-th
+    , ghc-paths
+    , haskell-template-task-raw
+    , process
+  default-language: Haskell2010
+
 executable test-task
   main-is: Main.hs
   other-modules:

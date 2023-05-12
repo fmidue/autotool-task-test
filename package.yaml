@@ -32,8 +32,8 @@ ghc-options:
 
 executables:
   test-task:
-    main:                Main.hs
-    source-dirs:         app
+    main: Main.hs
+    source-dirs: app
     ghc-options:
     - -threaded
     - -rtsopts
@@ -44,3 +44,13 @@ executables:
       - syb
       - haskell-src-exts
       - haskell-template-task-embedded # used for run-time compilation dependencies
+
+  pkg-path-from-stack:
+    main: Main.hs
+    source-dirs: app/pkg-path
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+      - process

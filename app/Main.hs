@@ -13,11 +13,11 @@ import GHC.Types.Name.Occurrence
 import Data.List (find)
 
 import Control.Exception (finally)
-import Control.Monad (join)
+import Control.Monad (join, when)
 import Control.Monad.IO.Class
 import Control.Monad.Extra (unlessM)
 
-import System.Environment (getArgs)
+import System.Environment (getArgs, setEnv)
 import System.Exit (exitSuccess, exitFailure)
 import System.Directory (doesFileExist, removeFile, getAppUserDataDirectory, createDirectoryIfMissing)
 
@@ -39,6 +39,11 @@ main = do
   case args of
     [task, solution] -> runMain task solution Nothing
     (task:solution:"--type-holes":tys) -> runMain task solution $ Just tys
+    _ -> showUsage
+
+showUsage :: IO ()
+showUsage =
+  putStrLn "Usage: test-task <path/to/taskConfig> <path/to/solution> [--type-holes <types>]"
 
 runMain :: FilePath -> FilePath -> Maybe [String] -> IO ()
 runMain task solution typeHoles = do
@@ -46,6 +51,10 @@ runMain task solution typeHoles = do
   flip finally (mapM_ removeFile (template:tests)) $ do
     appData <- getAppUserDataDirectory "test-task"
     setupHelperAndHarness appData
+    ghcPathExists <- doesFileExist $ appData ++ "/GHC_PACKAGE_PATH"
+    when ghcPathExists $ do
+      path <- readFile $ appData ++ "/GHC_PACKAGE_PATH"
+      setEnv "GHC_PACKAGE_PATH" path
     pkgEnvExists <- doesFileExist $ appData ++ "/pkg-env"
     let envFile =
           if pkgEnvExists
