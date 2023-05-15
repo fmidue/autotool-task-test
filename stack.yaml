@@ -1,4 +1,4 @@
-resolver: nightly-2023-05-11
+resolver: nightly-2023-04-24
 
 packages:
 - .
@@ -22,5 +22,13 @@ extra-deps:
 
   - express-1.0.8@sha256:02d6e556befd3fa072600305202e7eda9b54f37b7c8aa84a2f874b1a646474d1,11062
 
+  - codeworld-api-0.8.1
+  - patch-0.0.8.1
+  - reflex-0.9.0.0
+
 compiler-check:
   match-exact
+
+allow-newer: true
+allow-newer-deps:
+  - reflex

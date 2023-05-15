@@ -28,8 +28,8 @@ executable pkg-path-from-stack
     , base >=4.12 && <5
     , directory
     , extra
-    , ghc ==9.4.5
     , filepath
+    , ghc ==9.4.4
     , ghc-boot-th
     , ghc-paths
     , haskell-template-task-raw
@@ -49,10 +49,11 @@ executable test-task
       HUnit
     , QuickCheck
     , base >=4.12 && <5
+    , codeworld-api
     , directory
     , extra
-    , ghc ==9.4.5
     , filepath
+    , ghc ==9.4.4
     , ghc-boot-th
     , ghc-paths
     , haskell-src-exts
