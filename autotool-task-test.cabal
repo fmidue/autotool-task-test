@@ -28,7 +28,7 @@ executable pkg-path-from-stack
     , base >=4.12 && <5
     , directory
     , extra
-    , ghc ==9.4.5
+    , ghc ==9.4.4
     , ghc-boot-th
     , ghc-paths
     , haskell-template-task-raw
@@ -38,6 +38,8 @@ executable pkg-path-from-stack
 executable test-task
   main-is: Main.hs
   other-modules:
+      BatchMode
+      SingleFile
       Paths_autotool_task_test
   hs-source-dirs:
       app
@@ -48,7 +50,7 @@ executable test-task
     , base >=4.12 && <5
     , directory
     , extra
-    , ghc ==9.4.5
+    , ghc ==9.4.4
     , ghc-boot-th
     , ghc-paths
     , haskell-src-exts
