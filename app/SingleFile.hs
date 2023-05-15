@@ -15,7 +15,6 @@ import Control.Monad.IO.Class
 import Control.Monad.Extra (unlessM)
 
 import System.Environment (setEnv)
-import System.Exit (exitFailure)
 import System.Directory (doesFileExist, removeFile, getAppUserDataDirectory, createDirectoryIfMissing)
 
 import GHC.Paths (libdir)
@@ -25,7 +24,15 @@ import Unsafe.Coerce (unsafeCoerce)
 import Haskell.Template.FileContents (testHelperContents, testHarnessContents)
 import Test.HUnit (Counts(..))
 
-runMain :: FilePath -> FilePath -> Maybe [String] -> IO ()
+data Result = Failure | Success deriving (Eq, Ord, Show)
+
+instance Semigroup Result where
+  (<>) = min
+
+instance Monoid Result where
+  mempty = Success
+
+runMain :: FilePath -> FilePath -> Maybe [String] -> IO Result
 runMain task solution typeHoles = do
   (template,tests) <- splitTask task typeHoles
   flip finally (mapM_ removeFile (template:tests)) $ do
@@ -44,17 +51,25 @@ runMain task solution typeHoles = do
     -- test compile template
     -- don't load the first (primary) test module but load other hidden modules so that the template can import them
     (sflagTemplate,_) <- compileFiles env $ template : tail tests
-    reportOutcome "template" sflagTemplate
-    -- test compile solution and tests
-    (sflagSolution,env) <- compileFiles env $ [appData ++ "/TestHelper", appData ++ "/TestHarness", solution] ++ tests
-    reportOutcome "solution and tests" sflagSolution
-    testRes <- testFiles env
-    case testRes of
-      Just err -> do
-        putStrLn "testing solution failed:"
-        putStrLn err
-        exitFailure
-      Nothing -> putStrLn "successfully tested solution"
+    resTemplate <- reportOutcome "template" sflagTemplate
+    case resTemplate of
+      Failure -> pure Failure
+      Success -> do
+        -- test compile solution and tests
+        (sflagSolution,env) <- compileFiles env $ [appData ++ "/TestHelper", appData ++ "/TestHarness", solution] ++ tests
+        resSolAndTest <- reportOutcome "solution and tests" sflagSolution
+        case resSolAndTest of
+          Failure -> pure Failure
+          Success -> do
+            testRes <- testFiles env
+            case testRes of
+              Just err -> do
+                putStrLn "testing solution failed:"
+                putStrLn err
+                pure Failure
+              Nothing -> do
+                putStrLn "successfully tested solution"
+                pure Success
 
 setupHelperAndHarness :: FilePath -> IO ()
 setupHelperAndHarness appData = do
@@ -64,13 +79,14 @@ setupHelperAndHarness appData = do
   unlessM (doesFileExist $ appData ++ "/TestHarness.hs") $
     writeFile (appData ++ "/TestHarness.hs") testHarnessContents
 
-reportOutcome :: String -> SuccessFlag -> IO ()
-reportOutcome target Succeeded =
+reportOutcome :: String -> SuccessFlag -> IO Result
+reportOutcome target Succeeded = do
   putStrLn $ target ++ " complilation successfull"
+  pure Success
 reportOutcome target Failed = do
   putStrLn "Error locations are relative to configuration boundaries"
   putStrLn $ target ++ " compilation failed"
-  exitFailure
+  pure Failure
 
 setupEnv :: Maybe FilePath -> IO HscEnv
 setupEnv env = defaultErrorHandler defaultFatalMessager defaultFlushOut $

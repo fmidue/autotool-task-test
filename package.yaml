@@ -26,6 +26,7 @@ dependencies:
 - extra
 - haskell-template-task-raw
 - HUnit
+- filepath
 
 ghc-options:
 - -Wall

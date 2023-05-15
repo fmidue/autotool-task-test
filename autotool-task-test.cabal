@@ -29,6 +29,7 @@ executable pkg-path-from-stack
     , directory
     , extra
     , ghc ==9.4.5
+    , filepath
     , ghc-boot-th
     , ghc-paths
     , haskell-template-task-raw
@@ -51,6 +52,7 @@ executable test-task
     , directory
     , extra
     , ghc ==9.4.5
+    , filepath
     , ghc-boot-th
     , ghc-paths
     , haskell-src-exts
