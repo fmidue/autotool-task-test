@@ -35,4 +35,4 @@ RUN stack run pkg-path-from-stack
 
 WORKDIR /
 
-ENTRYPOINT ["test-task", "task.hs", "solution.hs"]
+ENTRYPOINT ["test-task", "--batch-mode", "tasks", "solutions"]
