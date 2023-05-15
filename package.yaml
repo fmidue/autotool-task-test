@@ -19,7 +19,7 @@ description:         Please see the README on GitHub at <https://github.com/fmid
 
 dependencies:
 - base >= 4.12 && < 5
-- ghc == 9.4.4
+- ghc == 9.4.5
 - ghc-paths
 - ghc-boot-th
 - directory
