@@ -9,12 +9,12 @@ import Data.Foldable (find)
 import Data.List (isInfixOf)
 
 import System.Directory (listDirectory)
-import System.FilePath (dropExtension)
+import System.FilePath (takeExtension, dropExtension)
 
 runMain :: FilePath -> FilePath -> Maybe [String] -> IO Result
 runMain taskFolder solutionFolder tys = do
-  tasks <- listDirectory taskFolder
-  solutions <- listDirectory solutionFolder
+  tasks <- filter ((== ".hs") . takeExtension) <$> listDirectory taskFolder
+  solutions <- filter ((== ".hs") . takeExtension) <$> listDirectory solutionFolder
   mconcat <$> forM (findConfigs tasks solutions) (\(solution, mTask) ->
     let solutionPath = solutionFolder ++ "/" ++ solution in
     case mTask of
